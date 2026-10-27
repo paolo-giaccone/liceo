@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Interroga Quiz - Web Mimic</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #00ff00;
+            font-family: monospace;
+            padding: 30px;
+            max-width: 800px;
+            margin: auto;
+        }
+        h2 {
+            border-bottom: 1px solid #00ff00;
+            padding-bottom: 10px;
+        }
+        .controls {
+            background-color: #1e1e1e;
+            padding: 15px;
+            border: 1px solid #333;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        .controls label, .controls input, .controls button {
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .controls button {
+            background-color: #00ff00;
+            color: #000;
+            border: none;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .controls button:hover {
+            background-color: #00cc00;
+        }
+        #terminal {
+            background-color: #000;
+            border: 1px solid #00ff00;
+            padding: 20px;
+            white-space: pre-wrap;
+            height: 400px;
+            overflow-y: auto;
+            border-radius: 5px;
+            box-shadow: inset 0 0 10px rgba(0, 255, 0, 0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Python Interroga Quiz Mimic</h2>
+    <div class="controls">
+        <div>
+            <label for="numTrials">Number of correct trials required: </label>
+            <input type="number" id="numTrials" value="2" min="1">
+        </div>
+        <br>
+        <div>
+            <label for="fileInput">Select Quiz File (.txt): </label>
+            <input type="file" id="fileInput" accept=".txt">
+        </div>
+        <button id="startBtn">Start Quiz</button>
+    </div>
+
+    <div id="terminal"></div>
+
+<script>
+let domande = [];
+let num_correct = {};
+let answers = {};
+let filename = "";
+let num_trials = 1;
+let currentIdx = 0;
+let key_domanda = "";
+let show_flag = false;
+let gameState = 'IDLE'; // 'IDLE', 'WAIT_INITIAL', 'WAIT_SECOND_FLAG_TRUE', 'WAIT_SECOND_FLAG_FALSE', 'FINISHED'
+
+const terminal = document.getElementById('terminal');
+
+function log(text) {
+    terminal.innerText += text + "\n";
+    terminal.scrollTop = terminal.scrollHeight;
+}
+
+function clearTerminal() {
+    terminal.innerText = "";
+}
+
+document.getElementById('startBtn').addEventListener('click', () => {
+    const fileInput = document.getElementById('fileInput');
+    const trialsInput = parseInt(document.getElementById('numTrials').value);
+
+    if (!fileInput.files.length) {
+        alert("Please select a quiz text file first!");
+        return;
+    }
+
+    if (isNaN(trialsInput) || trialsInput < 1) {
+        alert("Invalid number of trials!");
+        return;
+    }
+
+    num_trials = trialsInput;
+    const file = fileInput.files[0];
+    filename = file.name;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        parseFileContent(e.target.result);
+    };
+    reader.readAsText(file);
+});
+
+function parseFileContent(content) {
+    domande = [];
+    num_correct = {};
+    answers = {};
+
+    const lines = content.split(/\r?\n/);
+    for (let line of lines) {
+        if (!line.trim()) continue;
+        const x = line.replace(/,\s*$/, "").split(",");
+        
+        // Skip lines starting with #
+        if (x[0].trim().startsWith('#')) continue;
+        
+        if (x[0].length > 0) {
+            const key = x[0].trim();
+            num_correct[key] = 0;
+            answers[key] = x.slice(1).join(" ").trim();
+            domande.push(key);
+        }
+    }
+
+    log("DOmande tot " + domande.length);
+    if (domande.length === 0) {
+        log("Error: No valid questions found in file.");
+        gameState = 'FINISHED';
+        return;
+    }
+
+    setTimeout(nextQuestion, 500);
+}
+
+function nextQuestion() {
+    if (domande.length === 0) {
+        clearTerminal();
+        log("All questions completed successfully!");
+        gameState = 'FINISHED';
+        return;
+    }
+
+    clearTerminal();
+    log("Possible answers:");
+    log("[y] -> yes, I know the answer");
+    log("[n] -> no, I do not know the answer");
+    log("[s] -> show me the answer");
+    log("[q] -> QUIT");
+    log("Filename " + filename + " num_trials " + num_trials);
+    log("Left questions " + domande.length);
+
+    currentIdx = Math.floor(Math.random() * domande.length);
+    show_flag = false;
+    key_domanda = domande[currentIdx];
+    
+    log("===================================\nQ: " + key_domanda + " [y/n/s]");
+    gameState = 'WAIT_INITIAL';
+}
+
+// Key listener strictly restricting interaction to y, n, s, q
+document.addEventListener('keydown', (e) => {
+    if (gameState === 'IDLE' || gameState === 'FINISHED') return;
+
+    const key = e.key.toLowerCase();
+    
+    // Only allow the 4 required keys
+    if (!['y', 'n', 's', 'q'].includes(key)) {
+        return;
+    }
+
+    e.preventDefault(); // Prevent page scrolling
+
+    if (gameState === 'WAIT_INITIAL') {
+        if (key === 'q') {
+            log("q");
+            log("Quiz exited.");
+            gameState = 'FINISHED';
+            return;
+        }
+        //log(key);
+
+        if (key === 'y') {
+            num_correct[key_domanda] = (num_correct[key_domanda] || 0) + 1;
+        }
+        if (key === 's') {
+            show_flag = true;
+        }
+
+        if (show_flag === true) {
+            log("\nA: " + answers[key_domanda] + " [y/n]");
+            gameState = 'WAIT_SECOND_FLAG_TRUE';
+        } else {
+            log("\nA: " + answers[key_domanda]);
+            gameState = 'WAIT_SECOND_FLAG_FALSE';
+        }
+    } 
+    else if (gameState === 'WAIT_SECOND_FLAG_TRUE') {
+        if (key === 'q') {
+            log("q");
+            log("Quiz exited.");
+            gameState = 'FINISHED';
+            return;
+        }
+        //log(key);
+
+        if (key === 'y') {
+            num_correct[key_domanda] = (num_correct[key_domanda] || 0) + 1;
+        }
+
+        checkCompletion();
+    } 
+    else if (gameState === 'WAIT_SECOND_FLAG_FALSE') {
+        if (key === 'q') {
+            log("q");
+            log("Quiz exited.");
+            gameState = 'FINISHED';
+            return;
+        }
+        //log(key);
+
+        checkCompletion();
+    }
+});
+
+function checkCompletion() {
+    if (num_correct[key_domanda] >= num_trials) {
+        //log("Remove Q[" + key_domanda + "]");
+        domande.splice(currentIdx, 1);
+    }
+    setTimeout(nextQuestion, 400);
+}
+</script>
+
+</body>
+</html>
