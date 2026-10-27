@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interroga Quiz - Mobile Mimic</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #00ff00;
+            font-family: monospace;
+            padding: 15px;
+            max-width: 800px;
+            margin: auto;
+            touch-action: manipulation;
+        }
+        h2 {
+            border-bottom: 1px solid #00ff00;
+            padding-bottom: 10px;
+            font-size: 1.2rem;
+        }
+        .controls {
+            background-color: #1e1e1e;
+            padding: 15px;
+            border: 1px solid #333;
+            margin-bottom: 15px;
+            border-radius: 5px;
+        }
+        .controls label, .controls input, .controls button {
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .controls input[type="file"] {
+            width: 100%;
+            margin-top: 5px;
+        }
+        .controls button {
+            background-color: #00ff00;
+            color: #000;
+            border: none;
+            padding: 8px 14px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+            width: 100%;
+        }
+        .controls button:hover {
+            background-color: #00cc00;
+        }
+        #terminal {
+            background-color: #000;
+            border: 1px solid #00ff00;
+            padding: 15px;
+            white-space: pre-wrap;
+            height: 300px;
+            overflow-y: auto;
+            border-radius: 5px;
+            box-shadow: inset 0 0 10px rgba(0, 255, 0, 0.2);
+            font-size: 13px;
+        }
+        .mobile-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .mob-btn {
+            background-color: #1e1e1e;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 12px;
+            font-family: monospace;
+            font-weight: bold;
+            font-size: 14px;
+            border-radius: 5px;
+            text-align: center;
+            cursor: pointer;
+        }
+        .mob-btn:active {
+            background-color: #00ff00;
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Python Interroga Quiz (Mobile)</h2>
+    <div class="controls">
+        <div>
+            <label for="numTrials">Trials required: </label>
+            <input type="number" id="numTrials" value="2" min="1">
+        </div>
+        <br>
+        <div>
+            <label for="fileInput">Select Quiz File (.txt): </label>
+            <input type="file" id="fileInput" accept=".txt">
+        </div>
+        <button id="startBtn">Start Quiz</button>
+    </div>
+
+    <div id="terminal"></div>
+
+    <!-- On-screen touch buttons for mobile convenience -->
+    <div class="mobile-buttons" id="mobileButtons" style="display:none;">
+        <button class="mob-btn" onclick="processInput('y')">👉 Yes (Right)</button>
+        <button class="mob-btn" onclick="processInput('n')">👈 No (Left)</button>
+        <button class="mob-btn" onclick="processInput('s')">👆 Show (Up)</button>
+        <button class="mob-btn" onclick="processInput('q')">👇 Quit (Down)</button>
+    </div>
+
+<script>
+let domande = [];
+let num_correct = {};
+let answers = {};
+let filename = "";
+let num_trials = 1;
+let currentIdx = 0;
+let key_domanda = "";
+let show_flag = false;
+let gameState = 'IDLE'; 
+
+const terminal = document.getElementById('terminal');
+const mobileButtons = document.getElementById('mobileButtons');
+
+function log(text) {
+    terminal.innerText += text + "\n";
+    terminal.scrollTop = terminal.scrollHeight;
+}
+
+function clearTerminal() {
+    terminal.innerText = "";
+}
+
+document.getElementById('startBtn').addEventListener('click', () => {
+    const fileInput = document.getElementById('fileInput');
+    const trialsInput = parseInt(document.getElementById('numTrials').value);
+
+    if (!fileInput.files.length) {
+        alert("Please select a quiz text file first!");
+        return;
+    }
+
+    if (isNaN(trialsInput) || trialsInput < 1) {
+        alert("Invalid number of trials!");
+        return;
+    }
+
+    num_trials = trialsInput;
+    const file = fileInput.files[0];
+    filename = file.name;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        parseFileContent(e.target.result);
+    };
+    reader.readAsText(file);
+});
+
+function parseFileContent(content) {
+    domande = [];
+    num_correct = {};
+    answers = {};
+
+    const lines = content.split(/\r?\n/);
+    for (let line of lines) {
+        if (!line.trim()) continue;
+        const x = line.replace(/,\s*$/, "").split(",");
+        
+        if (x[0].trim().startsWith('#')) continue;
+        
+        if (x[0].length > 0) {
+            const key = x[0].trim();
+            num_correct[key] = 0;
+            answers[key] = x.slice(1).join(" ").trim();
+            domande.push(key);
+        }
+    }
+
+    log("Domande tot: " + domande.length);
+    if (domande.length === 0) {
+        log("Error: No valid questions found.");
+        gameState = 'FINISHED';
+        mobileButtons.style.display = 'none';
+        return;
+    }
+
+    mobileButtons.style.display = 'grid';
+    setTimeout(nextQuestion, 500);
+}
+
+function nextQuestion() {
+    if (domande.length === 0) {
+        clearTerminal();
+        log("All questions completed successfully!");
+        gameState = 'FINISHED';
+        mobileButtons.style.display = 'none';
+        return;
+    }
+
+    clearTerminal();
+    log("--- SWIPE CONTROLS ---");
+    log("👉 Swipe Right : [y] Yes");
+    log("👈 Swipe Left  : [n] No");
+    log("👆 Swipe Up    : [s] Show");
+    log("👇 Swipe Down  : [q] Quit");
+    log("----------------------");
+    log("Filename: " + filename + " | Trials: " + num_trials);
+    log("Left: " + domande.length);
+
+    currentIdx = Math.floor(Math.random() * domande.length);
+    show_flag = false;
+    key_domanda = domande[currentIdx];
+    
+    log("===================\nQ: " + key_domanda);
+    gameState = 'WAIT_INITIAL';
+}
+
+// Core input handler shared between keyboard, swipes, and buttons
+function processInput(key) {
+    if (gameState === 'IDLE' || gameState === 'FINISHED') return;
+    if (!['y', 'n', 's', 'q'].includes(key)) return;
+
+    if (gameState === 'WAIT_INITIAL') {
+        if (key === 'q') {
+            log("q");
+            log("Quiz exited.");
+            gameState = 'FINISHED';
+            mobileButtons.style.display = 'none';
+            return;
+        }
+
+        if (key === 'y') {
+            num_correct[key_domanda] = (num_correct[key_domanda] || 0) + 1;
+        }
+        if (key === 's') {
+            show_flag = true;
+        }
+
+        if (show_flag === true) {
+            log("\nA: " + answers[key_domanda] + " \n[Swipe Right for Yes / Left for No]");
+            gameState = 'WAIT_SECOND_FLAG_TRUE';
+        } else {
+            log("\nA: " + answers[key_domanda]);
+            gameState = 'WAIT_SECOND_FLAG_FALSE';
+        }
+    } 
+    else if (gameState === 'WAIT_SECOND_FLAG_TRUE') {
+        if (key === 'q') {
+            log("q");
+            log("Quiz exited.");
+            gameState = 'FINISHED';
+            mobileButtons.style.display = 'none';
+            return;
+        }
+
+        if (key === 'y') {
+            num_correct[key_domanda] = (num_correct[key_domanda] || 0) + 1;
+        }
+
+        checkCompletion();
+    } 
+    else if (gameState === 'WAIT_SECOND_FLAG_FALSE') {
+        if (key === 'q') {
+            log("q");
+            log("Quiz exited.");
+            gameState = 'FINISHED';
+            mobileButtons.style.display = 'none';
+            return;
+        }
+
+        checkCompletion();
+    }
+}
+
+function checkCompletion() {
+    if (num_correct[key_domanda] >= num_trials) {
+        domande.splice(currentIdx, 1);
+    }
+    setTimeout(nextQuestion, 400);
+}
+
+// Touch swipe gesture handlers
+let touchStartX = 0;
+let touchStartY = 0;
+
+terminal.addEventListener('touchstart', (e) => {
+    touchStartX = e.changedTouches[0].screenX;
+    touchStartY = e.changedTouches[0].screenY;
+}, { passive: true });
+
+terminal.addEventListener('touchend', (e) => {
+    const touchEndX = e.changedTouches[0].screenX;
+    const touchEndY = e.changedTouches[0].screenY;
+    
+    const diffX = touchEndX - touchStartX;
+    const diffY = touchEndY - touchStartY;
+    const threshold = 40; // minimum swipe distance in pixels
+
+    if (Math.abs(diffX) > Math.abs(diffY)) {
+        if (Math.abs(diffX) > threshold) {
+            if (diffX > 0) {
+                processInput('y'); // Swipe Right -> Yes
+            } else {
+                processInput('n'); // Swipe Left -> No
+            }
+        }
+    } else {
+        if (Math.abs(diffY) > threshold) {
+            if (diffY < 0) {
+                processInput('s'); // Swipe Up -> Show
+            } else {
+                processInput('q'); // Swipe Down -> Quit
+            }
+        }
+    }
+}, { passive: true });
+
+// Keep keyboard support active as well
+document.addEventListener('keydown', (e) => {
+    processInput(e.key.toLowerCase());
+});
+</script>
+
+</body>
+</html>
